@@ -1,23 +1,24 @@
 package store
 
 import (
-	"log"
-	"time"
+    "log"
+    "time"
 
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+    "gorm.io/driver/mysql"
+    "gorm.io/gorm"
+    "gorm.io/gorm/logger"
 )
 
 type MediaAsset struct {
-	ID          uint   `gorm:"primaryKey"`
-	OwnerID     string `gorm:"size:64;index"`
-	Status      string `gorm:"size:32;index"`
-	OriginalURL string `gorm:"size:512"`
-	Duration    float64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Variants    []MediaVariant `gorm:"foreignKey:MediaID"`
+    ID          uint   `gorm:"primaryKey"`
+    OwnerID     string `gorm:"size:64;index"`
+    Status      string `gorm:"size:32;index"`
+    OriginalURL string `gorm:"size:512"`
+    Duration    float64
+    CreatedAt   time.Time
+    UpdatedAt   time.Time
+    // 仅维护逻辑关联，不生成外键约束
+    Variants []MediaVariant `gorm:"foreignKey:MediaID"`
 }
 
 type MediaVariant struct {
@@ -40,10 +41,14 @@ type TranscodeJob struct {
 }
 
 func NewDB(dsn string) (*gorm.DB, error) {
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Warn)})
-	if err != nil {
-		return nil, err
-	}
+    // 禁用迁移阶段的外键约束创建，全部由业务代码保证一致性
+    db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+        Logger:                                   logger.Default.LogMode(logger.Warn),
+        DisableForeignKeyConstraintWhenMigrating: true,
+    })
+    if err != nil {
+        return nil, err
+    }
 	if err := db.AutoMigrate(&MediaAsset{}, &MediaVariant{}, &TranscodeJob{}); err != nil {
 		return nil, err
 	}
