@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  parallel:
+    build: .
+    image: parallel-app:latest
+    container_name: parallel
+    ports:
+      - "8080:8080"
+    environment:
+      # 必填: 修改为你的数据库/Redis 地址与凭据
+      - DATABASE_DSN=root:123456@tcp(db:3306)/parallel?parseTime=true
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=please-change-me
+      # 可选: 输出与上传目录（容器内路径固定，不建议改）
+      - TRANSCODE_OUTPUT=/app/data/output
+      - UPLOAD_DIR=/app/data/uploads
+      - FFMPEG_BINARY=ffmpeg
+      - HTTP_ADDR=:8080
+    volumes:
+      - parallel-uploads:/app/data/uploads
+      - parallel-output:/app/data/output
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: mysql:8.0
+    container_name: parallel-mysql
+    command: ["mysqld", "--default-authentication-plugin=mysql_native_password"]
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=parallel
+    ports:
+      - "3306:3306"
+    volumes:
+      - parallel-mysql:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: parallel-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  parallel-uploads:
+  parallel-output:
+  parallel-mysql:
+

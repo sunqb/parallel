@@ -1,0 +1,21 @@
+# Root context ignores
+.git
+.gitignore
+**/.DS_Store
+**/node_modules
+**/dist
+**/.vite
+**/coverage
+**/.cache
+**/*.log
+
+# Backend artifacts
+backend/api
+backend/bin
+backend/data/output
+backend/data/uploads
+backend/.cache
+
+# Frontend local env files
+frontend/.env*
+

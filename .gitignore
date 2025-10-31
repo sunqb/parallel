@@ -1,0 +1,39 @@
+# Go
+bin/
+.cache/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+*.log
+*.pid
+
+# Frontend (Node/Vite)
+node_modules/
+dist/
+.DS_Store
+*.local
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.yml
+!docker-compose.example.yml
+
+# Data
+data/
