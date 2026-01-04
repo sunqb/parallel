@@ -146,7 +146,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
       display: flex;
       background: #000;
     }
-    .dual-wrapper video {
+    .dual-wrapper video, .dual-wrapper canvas {
       flex: 1;
       width: 50%;
       height: 100%;
@@ -155,7 +155,6 @@ const HTML_CONTENT = `<!DOCTYPE html>
     }
     .video-left { border-right: 1px solid #333; }
     .video-right { pointer-events: none; }
-    .video-right::-webkit-media-controls { display: none !important; }
 
     .sync-hint {
       text-align: center;
@@ -201,7 +200,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
     </div>
     <div class="dual-wrapper">
       <video id="videoLeft" class="video-left" controls playsinline></video>
-      <video id="videoRight" class="video-right" playsinline></video>
+      <canvas id="canvasRight" class="video-right"></canvas>
     </div>
     <div class="sync-hint">左侧播放器控制两个窗口同步播放</div>
   </div>
@@ -217,7 +216,8 @@ const HTML_CONTENT = `<!DOCTYPE html>
     const backBtn = document.getElementById('backBtn');
     const sourceName = document.getElementById('sourceName');
     const videoLeft = document.getElementById('videoLeft');
-    const videoRight = document.getElementById('videoRight');
+    const canvasRight = document.getElementById('canvasRight');
+    const ctx = canvasRight.getContext('2d');
 
     let objectUrl = null;
 
@@ -273,91 +273,52 @@ const HTML_CONTENT = `<!DOCTYPE html>
       uploadPage.classList.add('hidden');
       playerPage.classList.add('active');
 
-      // 移动端必须先设置muted才能自动播放
-      videoLeft.muted = true;
-      videoRight.muted = true;
-      videoLeft.playsInline = true;
-      videoRight.playsInline = true;
-
-      // 设置src
+      // 设置视频源
       videoLeft.src = src;
-      videoRight.src = src;
+      videoLeft.muted = true;
+      videoLeft.playsInline = true;
 
-      // 同步事件处理
-      function syncPlay() {
-        videoRight.play().catch(() => {});
-      }
-      function syncPause() {
-        videoRight.pause();
-      }
-      function syncSeek() {
-        videoRight.currentTime = videoLeft.currentTime;
-      }
-      function syncRate() {
-        videoRight.playbackRate = videoLeft.playbackRate;
-      }
-      function syncVolume() {
-        videoRight.volume = videoLeft.volume;
-        videoRight.muted = videoLeft.muted;
-      }
-
-      videoLeft.addEventListener('play', syncPlay);
-      videoLeft.addEventListener('pause', syncPause);
-      videoLeft.addEventListener('seeking', syncSeek);
-      videoLeft.addEventListener('ratechange', syncRate);
-      videoLeft.addEventListener('volumechange', syncVolume);
-
-      // 时间同步
       let rafId = null;
-      function syncTime() {
-        if (Math.abs(videoLeft.currentTime - videoRight.currentTime) > 0.05) {
-          videoRight.currentTime = videoLeft.currentTime;
+
+      // 使用Canvas绘制右侧画面，绕过移动端多视频限制
+      function drawFrame() {
+        if (videoLeft.readyState >= 2) {
+          // 确保canvas尺寸匹配
+          if (canvasRight.width !== videoLeft.videoWidth || canvasRight.height !== videoLeft.videoHeight) {
+            canvasRight.width = videoLeft.videoWidth;
+            canvasRight.height = videoLeft.videoHeight;
+          }
+          ctx.drawImage(videoLeft, 0, 0, canvasRight.width, canvasRight.height);
         }
-        rafId = requestAnimationFrame(syncTime);
+        rafId = requestAnimationFrame(drawFrame);
       }
 
-      // 等待两个视频都准备好
-      let leftReady = false;
-      let rightReady = false;
-
-      function tryPlay() {
-        if (leftReady && rightReady) {
-          // 同时播放两个视频
-          Promise.all([
-            videoLeft.play().catch(() => {}),
-            videoRight.play().catch(() => {})
-          ]).then(() => {
-            syncTime();
-          });
-        }
-      }
-
-      videoLeft.addEventListener('canplay', () => {
-        leftReady = true;
-        tryPlay();
+      // 视频准备好后开始绘制
+      videoLeft.addEventListener('loadedmetadata', () => {
+        canvasRight.width = videoLeft.videoWidth;
+        canvasRight.height = videoLeft.videoHeight;
       }, { once: true });
 
-      videoRight.addEventListener('canplay', () => {
-        rightReady = true;
-        tryPlay();
+      videoLeft.addEventListener('canplay', () => {
+        videoLeft.play().catch(() => {});
+        drawFrame();
       }, { once: true });
 
       // 保存清理函数
       window._videoCleanup = () => {
-        if (rafId) cancelAnimationFrame(rafId);
-        videoLeft.removeEventListener('play', syncPlay);
-        videoLeft.removeEventListener('pause', syncPause);
-        videoLeft.removeEventListener('seeking', syncSeek);
-        videoLeft.removeEventListener('ratechange', syncRate);
-        videoLeft.removeEventListener('volumechange', syncVolume);
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
       };
     }
 
     backBtn.addEventListener('click', () => {
       cleanup();
       videoLeft.src = '';
-      videoRight.src = '';
       urlInput.value = '';
+      fileInput.value = '';
+      ctx.clearRect(0, 0, canvasRight.width, canvasRight.height);
       uploadPage.classList.remove('hidden');
       playerPage.classList.remove('active');
     });
