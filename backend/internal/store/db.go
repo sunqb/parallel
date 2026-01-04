@@ -4,7 +4,7 @@ import (
     "log"
     "time"
 
-    "gorm.io/driver/mysql"
+    "gorm.io/driver/sqlite"
     "gorm.io/gorm"
     "gorm.io/gorm/logger"
 )
@@ -40,9 +40,8 @@ type TranscodeJob struct {
 	UpdatedAt  time.Time
 }
 
-func NewDB(dsn string) (*gorm.DB, error) {
-    // 禁用迁移阶段的外键约束创建，全部由业务代码保证一致性
-    db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+func NewDB(dbPath string) (*gorm.DB, error) {
+    db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
         Logger:                                   logger.Default.LogMode(logger.Warn),
         DisableForeignKeyConstraintWhenMigrating: true,
     })

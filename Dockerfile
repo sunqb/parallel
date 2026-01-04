@@ -24,7 +24,7 @@ RUN set -eux; \
 FROM golang:1.21-alpine AS backend-builder
 WORKDIR /src/backend
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git sqlite
 
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -51,14 +51,14 @@ COPY --from=frontend-builder /frontend/dist ./frontend/dist
 ENV HTTP_ADDR=":8080" \
     JWT_SECRET="parallel-dev-secret-2025" \
     REDIS_URL="redis://redis:6379/0" \
-    DATABASE_DSN="root:123456@tcp(db:3306)/parallel?parseTime=true" \
+    DATABASE_PATH="/app/data/parallel.db" \
     QUEUE_STREAM="transcode_jobs" \
     FFMPEG_BINARY="ffmpeg" \
     TRANSCODE_OUTPUT="/app/data/output" \
     UPLOAD_DIR="/app/data/uploads"
 
 # Prepare data dirs and permissions
-RUN mkdir -p /app/data/output /app/data/uploads && \
+RUN mkdir -p /app/data/output /app/data/uploads /app/data && \
     chown -R app:app /app
 
 EXPOSE 8080

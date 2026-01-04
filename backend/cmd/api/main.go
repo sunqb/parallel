@@ -21,7 +21,7 @@ func main() {
 	cfg := config.Load()
 	log := logger.New(cfg.Env)
 
-	db, err := store.NewDB(cfg.DatabaseDSN)
+	db, err := store.NewDB(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("init db: %v", err)
 	}

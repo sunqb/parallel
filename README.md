@@ -7,7 +7,7 @@
 - **后端 (Go + Gin)**：
   - 文件上传 / 远程拉取入口，转码任务派发。
   - Redis Stream 维护转码队列，FFmpeg worker 输出多码率 HLS。
-  - MySQL/Gorm 存储媒体元数据与转码结果。
+  - SQLite/Gorm 存储媒体元数据与转码结果。
   - JWT 鉴权、预留 CDN 防盗链与缓存策略。
 
 - **前端 (React + Vite)**：
@@ -17,7 +17,7 @@
 
 ## 快速开始
 
-> 以下命令假设本地已安装 Go 1.21+、Node.js 18+、FFmpeg、MySQL、Redis。
+> 以下命令假设本地已安装 Go 1.21+、Node.js 18+、FFmpeg、Redis。项目使用SQLite作为轻量级数据库,无需额外安装。
 
 ### 克隆项目
 
@@ -35,7 +35,7 @@ cd parallel
    ```
 2. 配置环境变量（示例）：
    ```bash
-   export DATABASE_DSN="user:pass@tcp(127.0.0.1:3306)/media?parseTime=true"
+   export DATABASE_PATH="./data/parallel.db"
    export REDIS_URL="redis://127.0.0.1:6379/0"
    export JWT_SECRET="please-change-me"
    export TRANSCODE_OUTPUT="./data/output"
@@ -103,6 +103,42 @@ parallel/
 
 镜像已通过多阶段构建同时包含前后端与 ffmpeg，容器内后端会静态托管 `frontend/dist` 与 `/hls`。
 
+### 部署方式概览
+
+本项目采用单体架构，前后端通过多阶段构建合并到一个镜像中，后端服务直接托管前端静态文件。以下是详细的部署方式：
+
+#### 1. 使用 Docker 直接运行
+
+```bash
+docker run -d --name parallel \
+  -p 8080:8080 \
+  -e DATABASE_PATH='/app/data/parallel.db' \
+  -e REDIS_URL='redis://redis-host:6379/0' \
+  -e JWT_SECRET='your-secret-key' \
+  -e HTTP_ADDR=':8080' \
+  -e TRANSCODE_OUTPUT='/app/data/output' \
+  -e UPLOAD_DIR='/app/data/uploads' \
+  -e FFMPEG_BINARY='ffmpeg' \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/data/uploads:/app/data/uploads \
+  -v $(pwd)/data/output:/app/data/output \
+  parallel-app:latest
+```
+
+#### 2. 使用 Docker Compose
+
+推荐使用 `docker-compose.example.yml` 文件快速启动服务：
+
+```bash
+docker compose -f docker-compose.example.yml up -d --build
+```
+
+#### 3. 注意事项
+
+- **环境变量**：确保 `JWT_SECRET` 和 `DATABASE_DSN` 等敏感信息已正确配置。
+- **持久化存储**：挂载 `/app/data/uploads` 和 `/app/data/output` 到外部卷。
+- **健康检查**：服务启动后可通过 `http://127.0.0.1:8080/healthz` 验证运行状态。
+
 ### 构建镜像
 
 ```bash
@@ -111,39 +147,10 @@ docker build -t parallel-app:latest .
 # docker buildx build --platform linux/amd64,linux/arm64 -t your-registry/parallel-app:latest .
 ```
 
-### 直接运行（外部 MySQL/Redis）
-
-```bash
-docker run -d --name parallel \
-  -p 8080:8080 \
-  -e DATABASE_DSN='user:pass@tcp(dbhost:3306)/parallel?parseTime=true' \
-  -e REDIS_URL='redis://redis-host:6379/0' \
-  -e JWT_SECRET='please-change-me' \
-  -e HTTP_ADDR=':8080' \
-  -e TRANSCODE_OUTPUT='/app/data/output' \
-  -e UPLOAD_DIR='/app/data/uploads' \
-  -e FFMPEG_BINARY='ffmpeg' \
-  -v $(pwd)/data/uploads:/app/data/uploads \
-  -v $(pwd)/data/output:/app/data/output \
-  parallel-app:latest
-
-# 验证
-curl -fsS http://127.0.0.1:8080/healthz
-# 访问前端：http://127.0.0.1:8080/
-```
-
-### 使用 Compose（附带 MySQL/Redis）
-
-仓库已提供示例：`docker-compose.example.yml`
-
-```bash
-docker compose -f docker-compose.example.yml up -d --build
-# 首次启动 MySQL 初始化需数秒，等待后访问：http://127.0.0.1:8080/
-```
 
 ### 环境变量
 
-- `DATABASE_DSN`：MySQL DSN，如 `user:pass@tcp(db:3306)/parallel?parseTime=true`
+- `DATABASE_PATH`：SQLite数据库文件路径，默认 `./data/parallel.db`（容器内为 `/app/data/parallel.db`）
 - `REDIS_URL`：Redis 连接串，如 `redis://redis:6379/0`
 - `JWT_SECRET`：JWT 密钥；生产务必修改。开发可用 `parallel-dev-secret-2025`
 - `QUEUE_STREAM`：Redis Stream 名，默认 `transcode_jobs`
@@ -163,5 +170,5 @@ docker compose -f docker-compose.example.yml up -d --build
 
 - 设置强随机 `JWT_SECRET`；对 `/api` 做反向代理层限流与 WAF
 - 使用外部持久化卷挂载 `/app/data/{uploads,output}`
-- 监控：采集 `/healthz`、容器日志与转码失败日志；为 Redis/MySQL 设置持久化与备份
+- 监控：采集 `/healthz`、容器日志与转码失败日志；为 Redis 设置持久化与备份；定期备份 SQLite 数据库文件
 - 如需多实例，建议将 `/hls` 挂到共享存储或对象存储（改写 `CDNURL` 为公网 URL）

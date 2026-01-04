@@ -9,7 +9,7 @@ import (
 type Config struct {
 	Env                string
 	HTTPAddr           string
-	DatabaseDSN        string
+	DatabasePath       string
 	RedisURL           string
 	QueueStream        string
 	JWTSecret          string
@@ -22,7 +22,7 @@ func Load() Config {
 	cfg := Config{
 		Env:                getenv("APP_ENV", "development"),
 		HTTPAddr:           getenv("HTTP_ADDR", ":8080"),
-		DatabaseDSN:        getenv("DATABASE_DSN", "root:123456@tcp(10.2.128.120:3306)/parallel?parseTime=true"),
+		DatabasePath:       getenv("DATABASE_PATH", "./data/parallel.db"),
 		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379/0"),
 		QueueStream:        getenv("QUEUE_STREAM", "transcode_jobs"),
 		JWTSecret:          getenv("JWT_SECRET", "dev-secret"),
