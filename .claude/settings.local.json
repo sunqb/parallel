@@ -14,7 +14,13 @@
       "Bash(npm run dev:*)",
       "Bash(chmod:*)",
       "Bash(./start.sh:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm run build:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(npm install)"
     ],
     "deny": [],
     "ask": []
