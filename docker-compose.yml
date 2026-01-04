@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  dual-video-player:
+    build: .
+    container_name: dual-video-player
+    ports:
+      - "8080:80"
+    restart: unless-stopped
