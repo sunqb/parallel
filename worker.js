@@ -3,14 +3,12 @@
  *
  * 部署步骤:
  * 1. 登录 Cloudflare Dashboard -> Workers & Pages
- * 2. 点击 Create -> Create Worker
- * 3. 给Worker起个名字,点击 Deploy
- * 4. 点击 Edit code
- * 5. 删除默认代码,将此文件全部内容粘贴进去
- * 6. 点击 Deploy
- * 7. 完成! 点击预览链接即可访问
+ * 2. 创建新 Worker
+ * 3. 将此文件内容粘贴到编辑器
+ * 4. 点击 Deploy
  */
 
+// 内嵌的HTML页面
 const HTML_CONTENT = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -26,6 +24,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
       color: #fff;
     }
 
+    /* 上传页面 */
     .upload-container {
       min-height: 100vh;
       display: flex;
@@ -107,6 +106,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
     .tips { text-align: center; color: #666; font-size: 14px; }
     .tips h3 { color: #888; margin-bottom: 8px; }
 
+    /* 播放器页面 */
     .player-container {
       display: none;
       flex-direction: column;
@@ -167,6 +167,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
   </style>
 </head>
 <body>
+  <!-- 上传页面 -->
   <div class="upload-container" id="uploadPage">
     <h1 class="title">双屏同步视频播放器</h1>
     <p class="subtitle">上传本地视频或输入视频URL,两个播放器同步播放</p>
@@ -192,6 +193,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- 播放器页面 -->
   <div class="player-container" id="playerPage">
     <div class="player-header">
       <button class="back-btn" id="backBtn">← 返回</button>
@@ -205,35 +207,36 @@ const HTML_CONTENT = `<!DOCTYPE html>
   </div>
 
   <script>
-    var uploadPage = document.getElementById('uploadPage');
-    var playerPage = document.getElementById('playerPage');
-    var dropZone = document.getElementById('dropZone');
-    var fileInput = document.getElementById('fileInput');
-    var urlForm = document.getElementById('urlForm');
-    var urlInput = document.getElementById('urlInput');
-    var errorDiv = document.getElementById('error');
-    var backBtn = document.getElementById('backBtn');
-    var sourceName = document.getElementById('sourceName');
-    var videoLeft = document.getElementById('videoLeft');
-    var videoRight = document.getElementById('videoRight');
-    var objectUrl = null;
-    var rafId = null;
+    const uploadPage = document.getElementById('uploadPage');
+    const playerPage = document.getElementById('playerPage');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const urlForm = document.getElementById('urlForm');
+    const urlInput = document.getElementById('urlInput');
+    const errorDiv = document.getElementById('error');
+    const backBtn = document.getElementById('backBtn');
+    const sourceName = document.getElementById('sourceName');
+    const videoLeft = document.getElementById('videoLeft');
+    const videoRight = document.getElementById('videoRight');
 
-    dropZone.addEventListener('click', function() { fileInput.click(); });
-    dropZone.addEventListener('dragover', function(e) {
+    let objectUrl = null;
+
+    // 拖放处理
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => {
       e.preventDefault();
       dropZone.classList.add('dragging');
     });
-    dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragging'); });
-    dropZone.addEventListener('drop', function(e) {
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', e => {
       e.preventDefault();
       dropZone.classList.remove('dragging');
-      var file = e.dataTransfer.files[0];
+      const file = e.dataTransfer.files[0];
       if (file) handleFile(file);
     });
 
-    fileInput.addEventListener('change', function(e) {
-      var file = e.target.files[0];
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
       if (file) handleFile(file);
     });
 
@@ -247,16 +250,16 @@ const HTML_CONTENT = `<!DOCTYPE html>
       playVideo(objectUrl, file.name);
     }
 
-    urlForm.addEventListener('submit', function(e) {
+    urlForm.addEventListener('submit', e => {
       e.preventDefault();
-      var url = urlInput.value.trim();
+      const url = urlInput.value.trim();
       if (!url) {
         showError('请输入视频URL');
         return;
       }
       try {
         new URL(url);
-      } catch (err) {
+      } catch {
         showError('请输入有效的URL地址');
         return;
       }
@@ -272,53 +275,41 @@ const HTML_CONTENT = `<!DOCTYPE html>
       uploadPage.classList.add('hidden');
       playerPage.classList.add('active');
 
+      // 同步逻辑
       videoLeft.muted = true;
       videoRight.muted = true;
 
-      videoLeft.onplay = function() { videoRight.play(); };
-      videoLeft.onpause = function() { videoRight.pause(); };
-      videoLeft.onseeking = function() { videoRight.currentTime = videoLeft.currentTime; };
-      videoLeft.onratechange = function() { videoRight.playbackRate = videoLeft.playbackRate; };
-      videoLeft.onvolumechange = function() {
+      videoLeft.addEventListener('play', () => videoRight.play());
+      videoLeft.addEventListener('pause', () => videoRight.pause());
+      videoLeft.addEventListener('seeking', () => videoRight.currentTime = videoLeft.currentTime);
+      videoLeft.addEventListener('ratechange', () => videoRight.playbackRate = videoLeft.playbackRate);
+      videoLeft.addEventListener('volumechange', () => {
         videoRight.volume = videoLeft.volume;
         videoRight.muted = videoLeft.muted;
-      };
+      });
 
+      // 时间同步
       function syncTime() {
         if (Math.abs(videoLeft.currentTime - videoRight.currentTime) > 0.05) {
           videoRight.currentTime = videoLeft.currentTime;
         }
-        rafId = requestAnimationFrame(syncTime);
+        requestAnimationFrame(syncTime);
       }
       syncTime();
 
-      videoLeft.oncanplay = function() {
-        videoLeft.play();
-        videoLeft.oncanplay = null;
-      };
+      videoLeft.addEventListener('canplay', () => videoLeft.play(), { once: true });
     }
 
-    backBtn.addEventListener('click', function() {
+    backBtn.addEventListener('click', () => {
       cleanup();
       videoLeft.src = '';
       videoRight.src = '';
-      videoLeft.onplay = null;
-      videoLeft.onpause = null;
-      videoLeft.onseeking = null;
-      videoLeft.onratechange = null;
-      videoLeft.onvolumechange = null;
-      videoLeft.oncanplay = null;
       urlInput.value = '';
-      fileInput.value = '';
       uploadPage.classList.remove('hidden');
       playerPage.classList.remove('active');
     });
 
     function cleanup() {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;
@@ -332,15 +323,13 @@ const HTML_CONTENT = `<!DOCTYPE html>
 </body>
 </html>`;
 
-addEventListener('fetch', function(event) {
-  event.respondWith(handleRequest(event.request));
-});
-
-async function handleRequest(request) {
-  return new Response(HTML_CONTENT, {
-    headers: {
-      'Content-Type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'public, max-age=3600'
-    }
-  });
-}
+export default {
+  async fetch(request) {
+    return new Response(HTML_CONTENT, {
+      headers: {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  },
+};
