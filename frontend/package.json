@@ -7,13 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:preview": "npm run build && wrangler deploy --env preview",
+    "cf:dev": "npm run build && wrangler dev"
   },
   "dependencies": {
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
     "@types/react": "18.2.21",
     "@types/react-dom": "18.2.7",
     "@typescript-eslint/eslint-plugin": "6.9.1",
@@ -23,6 +27,7 @@
     "eslint-plugin-react-hooks": "4.6.0",
     "eslint-plugin-react-refresh": "0.4.3",
     "typescript": "5.2.2",
-    "vite": "4.4.9"
+    "vite": "4.4.9",
+    "wrangler": "^3.91.0"
   }
 }

@@ -1,6 +1,6 @@
 # 双屏同步视频播放器 (Frontend-Only)
 
-纯前端实现的双屏同步视频播放器,无需后端服务,可直接部署到 Cloudflare Pages 等静态托管平台。
+纯前端实现的双屏同步视频播放器,无需后端服务,可直接部署到 Cloudflare Workers。
 
 ## 功能特性
 
@@ -15,7 +15,7 @@
 - React 18
 - TypeScript
 - Vite
-- 纯CSS样式(无UI框架依赖)
+- Cloudflare Workers
 
 ## 本地开发
 
@@ -35,46 +35,79 @@ npm run build
 npm run preview
 ```
 
-## 部署到 Cloudflare Pages
+## 部署到 Cloudflare Workers
 
-### 方式一: 通过 Git 连接
+### 前置要求
 
-1. 将代码推送到 GitHub/GitLab
-2. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-3. 进入 Workers & Pages > Create application > Pages
-4. 连接你的 Git 仓库
-5. 配置构建设置:
-   - **Framework preset**: None
-   - **Build command**: `cd frontend && npm install && npm run build`
-   - **Build output directory**: `frontend/dist`
-   - **Root directory**: `/`
-6. 点击 Save and Deploy
-
-### 方式二: 直接上传
-
-1. 本地构建:
-   ```bash
-   cd frontend
-   npm run build
-   ```
-2. 在 Cloudflare Pages 创建项目
-3. 选择 "Upload assets"
-4. 上传 `frontend/dist` 目录中的所有文件
-
-### 方式三: 使用 Wrangler CLI
+1. 安装 Wrangler CLI (已包含在devDependencies中)
+2. 登录 Cloudflare 账号
 
 ```bash
-# 安装 Wrangler
-npm install -g wrangler
+# 登录 Cloudflare
+npx wrangler login
+```
 
-# 登录
-wrangler login
+### 部署命令
 
-# 构建
-cd frontend && npm run build
+```bash
+cd frontend
 
-# 部署
-wrangler pages deploy dist --project-name=dual-video-player
+# 安装依赖
+npm install
+
+# 部署到生产环境
+npm run deploy
+
+# 部署到预览环境
+npm run deploy:preview
+
+# 本地模拟 Workers 环境
+npm run cf:dev
+```
+
+### 手动部署
+
+```bash
+# 1. 构建前端
+npm run build
+
+# 2. 部署到 Workers
+npx wrangler deploy
+```
+
+### 配置说明
+
+`wrangler.toml` 配置文件:
+
+```toml
+name = "dual-video-player"        # Workers 名称
+main = "src/index.ts"             # Worker 入口文件
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "./dist"              # 静态资源目录
+```
+
+## 项目结构
+
+```
+frontend/
+├── src/
+│   ├── index.ts               # Cloudflare Worker 入口
+│   ├── App.tsx                # React 主应用组件
+│   ├── main.tsx               # React 入口文件
+│   ├── components/
+│   │   └── DualVideoPlayer.tsx # 双播放器组件
+│   └── styles/
+│       ├── global.css         # 全局样式
+│       ├── App.module.css     # App模块样式
+│       └── DualVideoPlayer.css # 播放器样式
+├── dist/                      # 构建输出目录
+├── index.html
+├── package.json
+├── vite.config.ts
+├── wrangler.toml              # Cloudflare Workers 配置
+└── tsconfig.json
 ```
 
 ## 支持的视频格式
@@ -90,24 +123,14 @@ wrangler pages deploy dist --project-name=dual-video-player
 2. **文件大小**: 本地文件通过 `URL.createObjectURL` 加载,受浏览器内存限制
 3. **HLS/DASH**: 此版本不支持HLS/DASH流媒体格式,如需支持请使用主分支版本
 
-## 项目结构
+## Workers API
 
-```
-frontend/
-├── src/
-│   ├── App.tsx                 # 主应用组件
-│   ├── main.tsx               # 入口文件
-│   ├── components/
-│   │   └── DualVideoPlayer.tsx # 双播放器组件
-│   └── styles/
-│       ├── global.css         # 全局样式
-│       ├── App.module.css     # App模块样式
-│       └── DualVideoPlayer.css # 播放器样式
-├── index.html
-├── package.json
-├── vite.config.ts
-└── tsconfig.json
-```
+Worker 提供以下API端点:
+
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/api/health` | GET | 健康检查,返回 `{status: "ok"}` |
+| `/*` | GET | 静态资源,由 Cloudflare Assets 处理 |
 
 ## License
 
