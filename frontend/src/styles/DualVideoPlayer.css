@@ -1,18 +1,45 @@
-.dual-wrapper {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-items: stretch;
+.dual-container {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dual-wrapper {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  background: #000;
 }
 
 .dual-wrapper video {
-  width: 100%;
+  flex: 1;
+  width: 50%;
   height: 100%;
-  border-radius: 12px;
-  overflow: hidden;
   object-fit: contain;
+  background: #000;
 }
 
-/* 右侧隐藏控制条（原 video.js 样式保留为兼容）；纯 video 无控制条 */
+.video-left {
+  border-right: 1px solid #333;
+}
+
+.video-right {
+  pointer-events: none;
+}
+
+.video-right::-webkit-media-controls {
+  display: none !important;
+}
+
+.video-right::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
+.sync-hint {
+  text-align: center;
+  padding: 8px;
+  background: #1a1a2e;
+  color: #888;
+  font-size: 12px;
+}

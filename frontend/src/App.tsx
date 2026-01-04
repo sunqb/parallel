@@ -1,183 +1,156 @@
-import { FormEvent, useState } from "react";
+import { useState, useRef, DragEvent } from "react";
 import { DualVideoPlayer } from "./components/DualVideoPlayer";
 import styles from "./styles/App.module.css";
 
-type PlaybackVariant = {
-  quality: string;
-  format: string;
-  cdnUrl: string;
-};
-
-type PlaybackResponse = {
-  status: string;
-  variants: PlaybackVariant[];
-};
-
 export default function App() {
-  const [mediaId, setMediaId] = useState<string>("");
-  const [playback, setPlayback] = useState<PlaybackResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [videoSrc, setVideoSrc] = useState<string>("");
+  const [urlInput, setUrlInput] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
-  const pollTokenRef = useState({ current: 0 })[0] as { current: number }; // simple ref without importing useRef
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
-  // simple sleep helper
-  const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-  const fetchPlayback = async (id: string) => {
-    const resp = await fetch(`/api/v1/media/${id}/play`, {
-      headers: { Authorization: "Bearer demo-token" }
-    });
-    if (!resp.ok) {
-      throw new Error("获取播放信息失败");
-    }
-    const data = (await resp.json()) as { data: PlaybackResponse };
-    return data.data;
-  };
-
-  const handleUpload = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    const form = new FormData(event.currentTarget);
-    try {
-      const resp = await fetch("/api/v1/media", {
-        method: "POST",
-        body: form,
-        headers: { Authorization: "Bearer demo-token" }
-      });
-      if (!resp.ok) {
-        throw new Error("上传失败");
-      }
-      const data = await resp.json();
-      setMediaId(String(data.data.mediaId));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-      event.currentTarget.reset();
+  const cleanupObjectUrl = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
     }
   };
 
-  const handleFetchByUrl = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    const form = new FormData(event.currentTarget);
-    const url = form.get("videoUrl");
-    try {
-      const resp = await fetch("/api/v1/media/by-url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer demo-token"
-        },
-        body: JSON.stringify({ url })
-      });
-      if (!resp.ok) {
-        throw new Error("提交地址失败");
-      }
-      const data = await resp.json();
-      setMediaId(String(data.data.mediaId));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-      event.currentTarget.reset();
-    }
-  };
-
-  const loadPlayback = async () => {
-    if (!mediaId) {
-      setError("请先上传或提交视频地址");
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith("video/")) {
+      setError("请选择视频文件");
       return;
     }
-    setLoading(true);
     setError(null);
-    try {
-  // cancel any previous polling by bumping token
-  pollTokenRef.current += 1;
-  const myToken = pollTokenRef.current;
+    cleanupObjectUrl();
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setVideoSrc(url);
+    setUrlInput("");
+  };
 
-      const first = await fetchPlayback(mediaId);
-      setPlayback(first);
-
-      if (first.status === "FAILED") {
-        throw new Error("转码失败，请重试上传或更换视频");
-      }
-
-      if (first.status === "READY" && first.variants?.length) {
-        return;
-      }
-
-      // Start polling until READY with variants
-      setPolling(true);
-      const maxAttempts = 90; // ~3 minutes @ 2s
-      for (let i = 0; i < maxAttempts; i++) {
-        await sleep(2000);
-  // if a new poll started, stop this one
-  if (pollTokenRef.current !== myToken) break;
-        const next = await fetchPlayback(mediaId);
-        setPlayback(next);
-        if (next.status === "FAILED") {
-          setPolling(false);
-          throw new Error("转码失败，请重试上传或更换视频");
-        }
-        if (next.status === "READY" && next.variants?.length) {
-          break;
-        }
-      }
-      setPolling(false);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
     }
   };
 
-  const variantUrl = playback?.variants[0]?.cdnUrl ?? "";
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!urlInput.trim()) {
+      setError("请输入视频URL");
+      return;
+    }
+    try {
+      new URL(urlInput);
+    } catch {
+      setError("请输入有效的URL地址");
+      return;
+    }
+    setError(null);
+    cleanupObjectUrl();
+    setVideoSrc(urlInput.trim());
+  };
+
+  const handleReset = () => {
+    cleanupObjectUrl();
+    setVideoSrc("");
+    setUrlInput("");
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className={styles.app}>
-      <header className={styles.header}>
-        <h1>双屏同步视频播放器</h1>
-        <p>上传文件或输入远程视频地址，左右同时播放同源视频以便对比。</p>
-      </header>
-      <section className={styles.controls}>
-        <form onSubmit={handleUpload} className={styles.form}>
-          <label className={styles.label}>本地文件上传</label>
-          <input type="file" name="file" accept="video/*" required />
-          <button type="submit" disabled={loading}>
-            {loading ? "处理中" : "上传"}
-          </button>
-        </form>
-        <form onSubmit={handleFetchByUrl} className={styles.form}>
-          <label className={styles.label}>远程视频 URL</label>
-          <input type="url" name="videoUrl" placeholder="https://example.com/video.mp4" required />
-          <button type="submit" disabled={loading}>
-            {loading ? "处理中" : "提交"}
-          </button>
-        </form>
-        <div className={styles.playbackActions}>
-          <label className={styles.label}>当前资源 ID</label>
-          <input value={mediaId} onChange={(e) => setMediaId(e.target.value)} placeholder="mediaId" />
-          <button type="button" onClick={loadPlayback} disabled={!mediaId || loading}>
-            加载播放链接
-          </button>
-        </div>
-        {error && <div className={styles.error}>{error}</div>}
-      </section>
-      <main className={styles.playerArea}>
-        {playback && variantUrl ? (
-          <DualVideoPlayer leftSrc={variantUrl} rightSrc={variantUrl} />
-        ) : (
-          <div className={styles.placeholder}>
-            {polling || playback?.status === "PROCESSING"
-              ? "正在转码，请稍候…（完成后将自动开始播放）"
-              : "等待播放资源…"}
+      {!videoSrc ? (
+        <div className={styles.uploadContainer}>
+          <h1 className={styles.title}>双屏同步视频播放器</h1>
+          <p className={styles.subtitle}>
+            上传本地视频或输入视频URL,两个播放器同步播放
+          </p>
+
+          <div
+            className={`${styles.dropZone} ${isDragging ? styles.dragging : ""}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleFileChange}
+              className={styles.hiddenInput}
+            />
+            <div className={styles.dropIcon}>📁</div>
+            <p className={styles.dropText}>
+              拖放视频文件到此处
+              <br />
+              或点击选择文件
+            </p>
           </div>
-        )}
-      </main>
+
+          <div className={styles.divider}>
+            <span>或</span>
+          </div>
+
+          <form onSubmit={handleUrlSubmit} className={styles.urlForm}>
+            <input
+              type="text"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="输入视频URL地址"
+              className={styles.urlInput}
+            />
+            <button type="submit" className={styles.submitBtn}>
+              加载视频
+            </button>
+          </form>
+
+          {error && <div className={styles.error}>{error}</div>}
+
+          <div className={styles.tips}>
+            <h3>支持的格式</h3>
+            <p>MP4, WebM, OGV 等浏览器原生支持的视频格式</p>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.playerContainer}>
+          <div className={styles.playerHeader}>
+            <button onClick={handleReset} className={styles.backBtn}>
+              ← 返回
+            </button>
+            <span className={styles.currentSource}>
+              {objectUrlRef.current ? "本地文件" : urlInput}
+            </span>
+          </div>
+          <DualVideoPlayer src={videoSrc} />
+        </div>
+      )}
     </div>
   );
 }
