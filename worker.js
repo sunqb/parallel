@@ -269,35 +269,88 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
     function playVideo(src, name) {
       errorDiv.textContent = '';
-      videoLeft.src = src;
-      videoRight.src = src;
       sourceName.textContent = name;
       uploadPage.classList.add('hidden');
       playerPage.classList.add('active');
 
-      // 同步逻辑
+      // 移动端必须先设置muted才能自动播放
       videoLeft.muted = true;
       videoRight.muted = true;
+      videoLeft.playsInline = true;
+      videoRight.playsInline = true;
 
-      videoLeft.addEventListener('play', () => videoRight.play());
-      videoLeft.addEventListener('pause', () => videoRight.pause());
-      videoLeft.addEventListener('seeking', () => videoRight.currentTime = videoLeft.currentTime);
-      videoLeft.addEventListener('ratechange', () => videoRight.playbackRate = videoLeft.playbackRate);
-      videoLeft.addEventListener('volumechange', () => {
+      // 设置src
+      videoLeft.src = src;
+      videoRight.src = src;
+
+      // 同步事件处理
+      function syncPlay() {
+        videoRight.play().catch(() => {});
+      }
+      function syncPause() {
+        videoRight.pause();
+      }
+      function syncSeek() {
+        videoRight.currentTime = videoLeft.currentTime;
+      }
+      function syncRate() {
+        videoRight.playbackRate = videoLeft.playbackRate;
+      }
+      function syncVolume() {
         videoRight.volume = videoLeft.volume;
         videoRight.muted = videoLeft.muted;
-      });
+      }
+
+      videoLeft.addEventListener('play', syncPlay);
+      videoLeft.addEventListener('pause', syncPause);
+      videoLeft.addEventListener('seeking', syncSeek);
+      videoLeft.addEventListener('ratechange', syncRate);
+      videoLeft.addEventListener('volumechange', syncVolume);
 
       // 时间同步
+      let rafId = null;
       function syncTime() {
         if (Math.abs(videoLeft.currentTime - videoRight.currentTime) > 0.05) {
           videoRight.currentTime = videoLeft.currentTime;
         }
-        requestAnimationFrame(syncTime);
+        rafId = requestAnimationFrame(syncTime);
       }
-      syncTime();
 
-      videoLeft.addEventListener('canplay', () => videoLeft.play(), { once: true });
+      // 等待两个视频都准备好
+      let leftReady = false;
+      let rightReady = false;
+
+      function tryPlay() {
+        if (leftReady && rightReady) {
+          // 同时播放两个视频
+          Promise.all([
+            videoLeft.play().catch(() => {}),
+            videoRight.play().catch(() => {})
+          ]).then(() => {
+            syncTime();
+          });
+        }
+      }
+
+      videoLeft.addEventListener('canplay', () => {
+        leftReady = true;
+        tryPlay();
+      }, { once: true });
+
+      videoRight.addEventListener('canplay', () => {
+        rightReady = true;
+        tryPlay();
+      }, { once: true });
+
+      // 保存清理函数
+      window._videoCleanup = () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        videoLeft.removeEventListener('play', syncPlay);
+        videoLeft.removeEventListener('pause', syncPause);
+        videoLeft.removeEventListener('seeking', syncSeek);
+        videoLeft.removeEventListener('ratechange', syncRate);
+        videoLeft.removeEventListener('volumechange', syncVolume);
+      };
     }
 
     backBtn.addEventListener('click', () => {
@@ -310,6 +363,10 @@ const HTML_CONTENT = `<!DOCTYPE html>
     });
 
     function cleanup() {
+      if (window._videoCleanup) {
+        window._videoCleanup();
+        window._videoCleanup = null;
+      }
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;
